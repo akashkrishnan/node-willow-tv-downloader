@@ -1,0 +1,29 @@
+{
+  "name": "willow-tv-downloader",
+  "version": "0.0.0",
+  "description": "node-willow-tv-downloader",
+  "author": "Akash Krishnan <ak@aakay.net>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ak-systems/node-willow-tv-downloader.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ak-systems/node-willow-tv-downloader/issues"
+  },
+  "homepage": "https://github.com/ak-systems/node-willow-tv-downloader#readme",
+  "main": "src/index.js",
+  "scripts": {},
+  "engines": {
+    "node": "^12.1.0"
+  },
+  "dependencies": {
+    "@chovy/m3u8": "^1.2.0",
+    "array-flatten": "^2.1.2",
+    "axios": "^0.18.0",
+    "cookie": "^0.4.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "parallel-transform": "^1.1.0",
+    "stream-stream": "^1.2.6"
+  }
+}
