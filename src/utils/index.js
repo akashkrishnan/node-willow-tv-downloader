@@ -57,8 +57,9 @@ function fn( fn, defaultFn ) {
 }
 
 function serializeCookies( cookies ) {
-  return array( cookies ).map( c => cookie.serialize( c.name, c.value, c.options || {} ) )
-                         .join( '; ' );
+  return Object.entries( cookies )
+               .map( entry => cookie.serialize( ...entry ) )
+               .join( '; ' );
 }
 
 function uniqueArray( a ) {

@@ -23,6 +23,7 @@
     "axios": "^0.18.0",
     "cookie": "^0.4.0",
     "fluent-ffmpeg": "^2.1.2",
+    "htmlparser2": "^3.10.1",
     "parallel-transform": "^1.1.0",
     "stream-stream": "^1.2.6"
   }

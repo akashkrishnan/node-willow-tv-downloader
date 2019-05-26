@@ -1,17 +1,21 @@
 'use strict';
 
+const Utils = require( './utils' );
 const IOUtils = require( './utils/io' );
 const fs = require( 'fs' );
 const path = require( 'path' );
+const axios = require( 'axios' );
 const m3u8 = require( '@chovy/m3u8' );
 const parallel = require( 'parallel-transform' );
 const streamstream = require( 'stream-stream' );
 const ffmpeg = require( 'fluent-ffmpeg' );
+const htmlparser2 = require( 'htmlparser2' );
 
 module.exports = {
   downloadMaster,
   downloadIndex,
   parsePlaylist,
+  extractMasterUrl,
 };
 
 if ( require.main === module ) {
@@ -20,17 +24,32 @@ if ( require.main === module ) {
 
 async function main() {
 
+  const matchid = 5482;
+  const outputDir = path.resolve( __dirname );
+  const session = process.env.WILLOW_TV_SESSION;
+
   console.time( 'download' );
 
-  const masterUrl = new URL(
-    'https://akvod177w-vh.akamaihd.net/i/warchives/ICC_Cricket_World_Cup_2019__Sling_TV_+_TV_Viewers_/5661/Highlights/5661_Highlights_short_web.smil/master.m3u8?hdnts=exp=1558835859~acl=%2Fi%2Fwarchives%2FICC_Cricket_World_Cup_2019__Sling_TV_+_TV_Viewers_%2F5661%2FHighlights%2F5661_Highlights_short_web.smil*~hmac=f624685fe8ac58123f6f3c2aeb0316cff8543b90cfd17d9e35f06dbe5d217dab' );
-
-  const outputDir = path.resolve( __dirname );
-  const outputFilename = path.resolve( outputDir, path.basename( masterUrl.pathname ) );
-
-  await downloadMaster( masterUrl, outputFilename );
+  await downloadMatch( matchid, outputDir, session );
 
   console.timeEnd( 'download' );
+
+}
+
+async function downloadMatch( matchid, outputDir, session ) {
+
+  const replayUrls = await getReplayUrls( matchid, session );
+
+  for ( const replay of replayUrls ) {
+
+    const outputFilename = path.resolve(
+      outputDir,
+      replay.title + ( replayUrls.length > 1 ? ` - Part ${replay.priority}` : '' )
+    );
+
+    await downloadMaster( replay.url, outputFilename );
+
+  }
 
 }
 
@@ -38,8 +57,8 @@ async function downloadMaster( masterUrl, outputFilename, numConnections = 8 ) {
 
   const parser = await parsePlaylist( masterUrl );
 
-  const index = await reduceStream( parser, 'item', ( curr, item ) => {
-    return !curr || item.get( 'bandwidth' ) > curr.get( 'bandwidth' ) ? item : curr;
+  const index = await __reduceStream( parser, 'item', ( curr, item ) => {
+    return !curr || item.get( 'bandwidth' ) < curr.get( 'bandwidth' ) ? item : curr;
   } );
 
   const indexUrl = new URL( index.get( 'uri' ) );
@@ -50,17 +69,19 @@ async function downloadMaster( masterUrl, outputFilename, numConnections = 8 ) {
 async function downloadIndex( indexUrl, outputFilename, numConnections = 8 ) {
   return new Promise( async ( resolve, reject ) => {
 
-    const output = fs.createWriteStream( outputFilename + '.mkv' )
+    const output = fs.createWriteStream( outputFilename + '.ts' )
                      .on( 'finish', resolve )
                      .on( 'error', reject );
 
     const merger = streamstream();
 
-    ffmpeg().input( merger )
-            .output( output )
-            .videoCodec( 'copy' )
-            .format( 'matroska' )
-            .run();
+    merger.pipe( output );
+
+    // ffmpeg().input( merger )
+    //         .output( output )
+    //         .videoCodec( 'copy' )
+    //         .format( 'matroska' )
+    //         .run();
 
     const downloader = parallel(
       numConnections,
@@ -114,7 +135,7 @@ async function parsePlaylist( url ) {
 
 }
 
-async function reduceStream( stream, event, onreduce ) {
+async function __reduceStream( stream, event, onreduce ) {
   return new Promise( ( resolve, reject ) => {
 
     let cur;
@@ -124,4 +145,69 @@ async function reduceStream( stream, event, onreduce ) {
           .once( 'error', err => reject( err ) );
 
   } );
+}
+
+async function getReplayUrls( matchid, session ) {
+
+  const cookie = Utils.serializeCookies( { session } );
+
+  const { data } = await axios.get(
+    'https://www.willow.tv/match_replay_data_by_id',
+    {
+      headers: { cookie },
+      params: { matchid },
+    }
+  );
+
+  const result = JSON.parse( /HandleMatchReplayDetails\((.*)\)/g.exec( data )[ 1 ] );
+
+  if ( result.status !== 'success' ) {
+    throw Error( 'Unable to get match replay data.' );
+  }
+
+  return result.result.replay[ 0 ].map( ( { title, priority, secureurl } ) => ( {
+    title,
+    priority,
+    url: new URL( secureurl ),
+  } ) );
+
+}
+
+async function extractMasterUrl( url ) {
+
+  const html = await IOUtils.download.toStream(
+    url,
+    {}
+  );
+
+  return new Promise( ( resolve, reject ) => {
+
+    let script;
+    let url;
+
+    const parser = new htmlparser2.Parser(
+      {
+        onopentagname: name => script = name === 'script',
+        ontext: text => {
+          if ( script && !url ) {
+
+            const re = /f_strm = "(.*)";/g;
+
+            const results = re.exec( text );
+
+            if ( results && results[ 1 ] ) {
+              url = new URL( results[ 1 ] );
+            }
+
+          }
+        },
+        onerror: reject,
+        onend: () => resolve( url ),
+      }
+    );
+
+    html.pipe( parser );
+
+  } );
+
 }

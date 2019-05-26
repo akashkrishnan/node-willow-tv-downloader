@@ -12,13 +12,14 @@ module.exports = {
   pipe,
 };
 
-async function downloadToBuffer( url ) {
+async function downloadToBuffer( url, headers ) {
 
   const { data } = await axios.get(
     url.href,
     {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.157 Safari/537.36',
+        ...headers,
       },
       responseType: 'arraybuffer',
     }
@@ -36,13 +37,14 @@ async function downloadToFile( url, filename ) {
 
 }
 
-async function downloadToStream( url ) {
+async function downloadToStream( url, headers ) {
 
   const { data } = await axios.get(
     url.href,
     {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.157 Safari/537.36',
+        ...headers,
       },
       responseType: 'stream',
     }
